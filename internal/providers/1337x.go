@@ -15,13 +15,14 @@ import (
 type One337XResult struct {
 	mu     *sync.Mutex
 	wg     sync.WaitGroup
-	Items  []torrent `json:"items"`
-	Errors []error   `json:"errors"`
+	Items  []torrent
+	Errors []error
 }
 
 type torrent struct {
 	Name   string
 	Magnet string
+	Info   map[string]string
 }
 
 func One337X(w http.ResponseWriter, r *http.Request) {
@@ -111,15 +112,28 @@ func details(ts *One337XResult, url string) {
 		return
 	}
 
-	untrimmedName := doc.Find("h1").First().Text()
-	name := strings.Trim(untrimmedName, " ")
-
-	magnet, _ := doc.Find("a[href^=magnet]").First().Attr("href")
-
 	t := torrent{
-		Name:   name,
-		Magnet: magnet,
+		Info: make(map[string]string),
 	}
+
+	untrimmedName := doc.Find("h1").First().Text()
+	t.Name = strings.Trim(untrimmedName, " ")
+
+	t.Magnet, _ = doc.Find("a[href^=magnet]").First().Attr("href")
+
+	doc.Find(".list").Each(func(i int, s *goquery.Selection) {
+		switch i {
+		case 0:
+			return
+		case 1, 2:
+			s.Find("li").Each(func(i int, s *goquery.Selection) {
+				key := s.Find("strong").First().Text()
+				value := s.Find("span").First().Text()
+
+				t.Info[key] = strings.Trim(value, " ")
+			})
+		}
+	})
 
 	ts.mu.Lock()
 	ts.Items = append(ts.Items, t)
