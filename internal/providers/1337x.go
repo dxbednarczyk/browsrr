@@ -32,6 +32,7 @@ func One337X(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("error decoding url"))
+
 		return
 	}
 
@@ -41,13 +42,17 @@ func One337X(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("error fetching result"))
+
 		return
 	}
+
+	defer resp.Body.Close()
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("error creating document"))
+
 		return
 	}
 
@@ -57,6 +62,7 @@ func One337X(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("error marshaling response"))
+
 		return
 	}
 
