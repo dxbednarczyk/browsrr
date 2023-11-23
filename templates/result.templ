@@ -1,0 +1,46 @@
+package templates
+
+type Results struct {
+    Items  []Torrent
+	Errors []error
+}
+
+type Torrent struct {
+	Name   string
+	Magnet string
+	Info   map[string]string
+}
+
+templ ResultsTemplate(results *Results) {
+    @head()
+
+	<h2>Results</h2>
+
+	if len(results.Errors) != 0 {
+		<ul>
+		for _, err := range results.Errors {
+			<li><h3 style="color:red;">ERROR: { err.Error() }</h3></li>
+		}
+		</ul>
+	}
+
+	<ul>
+	for _, item := range results.Items {
+		<li>
+			{ item.Name } <a href={ templ.SafeURL(item.Magnet) }> Download </a>
+			<br />
+			Category: { item.Info["Category"] }
+			<br />
+			Date uploaded: { item.Info["Date uploaded"] }
+			<br />
+			Downloads: { item.Info["Downloads"] }
+			<br />
+			Seeders: <span style="color:green;"> { item.Info["Seeders"] } </span>
+			<br />
+			Leechers: <span style="color:red;"> { item.Info["Leechers"] } </span>
+			<br />
+		</li>
+	}
+	</ul>
+}
+

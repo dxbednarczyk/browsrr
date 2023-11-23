@@ -1,0 +1,16 @@
+package templates
+
+templ Index() {
+    @head()
+
+	<h1>Browsrr</h1>
+
+    <form   hx-post="/1337x/" 
+            hx-target="#results"
+            hx-swap="innerHTML" >
+        <input type="text" id="query" name="query" />
+        <button type="submit">Search</button>
+    </form> 
+
+    <div id="results"></div>
+}

@@ -1,45 +1,25 @@
 package providers
 
 import (
-	"encoding/base64"
-	"encoding/json"
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/go-chi/chi/v5"
+	"github.com/dxbednarczyk/browsrr/templates"
 )
 
-type One337XResult struct {
-	mu     *sync.Mutex
-	wg     sync.WaitGroup
-	Items  []torrent
-	Errors []error
-}
-
-type torrent struct {
-	Name   string
-	Magnet string
-	Info   map[string]string
-}
-
 func One337X(w http.ResponseWriter, r *http.Request) {
-	encoded := chi.URLParam(r, "encoded")
+	r.ParseForm()
+	query := r.PostForm.Get("query")
 
-	decodedBytes, err := base64.URLEncoding.DecodeString(encoded)
-	if err != nil {
-		fmt.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("error decoding url"))
+	formatted := fmt.Sprintf("https://1337x.to/search/%s/1/", query)
 
-		return
-	}
+	fmt.Println(formatted)
 
-	decoded := string(decodedBytes)
-
-	resp, err := http.Get(decoded)
+	resp, err := http.Get(formatted)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("error fetching result"))
@@ -59,22 +39,15 @@ func One337X(w http.ResponseWriter, r *http.Request) {
 
 	parsed := parseDocument(doc)
 
-	j, err := json.Marshal(&parsed)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("error marshaling response"))
-
-		return
-	}
-
-	w.Header().Add("Content-Type", "application/json")
-	w.Write(j)
+	w.Header().Add("Content-Type", "text/html")
+	templates.ResultsTemplate(parsed).Render(context.Background(), w)
 }
 
-func parseDocument(doc *goquery.Document) *One337XResult {
-	r := One337XResult{
-		mu: &sync.Mutex{},
-	}
+func parseDocument(doc *goquery.Document) *templates.Results {
+	r := templates.Results{}
+
+	mu := &sync.Mutex{}
+	var wg sync.WaitGroup
 
 	doc.Find(".name a").Each(func(i int, s *goquery.Selection) {
 		url, exists := s.Attr("href")
@@ -82,19 +55,19 @@ func parseDocument(doc *goquery.Document) *One337XResult {
 			return
 		}
 
-		if strings.HasPrefix(url, "/torrent/") {
-			r.wg.Add(1)
-			go details(&r, url)
+		if strings.HasPrefix(url, "/torrent") {
+			wg.Add(1)
+			go details(&r, mu, &wg, url)
 		}
 	})
 
-	r.wg.Wait()
+	wg.Wait()
 
 	return &r
 }
 
-func details(ts *One337XResult, url string) {
-	defer ts.wg.Done()
+func details(ts *templates.Results, mu *sync.Mutex, wg *sync.WaitGroup, url string) {
+	defer wg.Done()
 
 	combined := "https://1337x.to" + url
 
@@ -112,7 +85,7 @@ func details(ts *One337XResult, url string) {
 		return
 	}
 
-	t := torrent{
+	t := templates.Torrent{
 		Info: make(map[string]string),
 	}
 
@@ -122,20 +95,19 @@ func details(ts *One337XResult, url string) {
 	t.Magnet, _ = doc.Find("a[href^=magnet]").First().Attr("href")
 
 	doc.Find(".list").Each(func(i int, s *goquery.Selection) {
-		switch i {
-		case 0:
+		if i == 0 {
 			return
-		case 1, 2:
-			s.Find("li").Each(func(i int, s *goquery.Selection) {
-				key := s.Find("strong").First().Text()
-				value := s.Find("span").First().Text()
-
-				t.Info[key] = strings.Trim(value, " ")
-			})
 		}
+
+		s.Find("li").Each(func(i int, s *goquery.Selection) {
+			key := s.Find("strong").First().Text()
+			value := s.Find("span").First().Text()
+
+			t.Info[key] = strings.Trim(value, " ")
+		})
 	})
 
-	ts.mu.Lock()
+	mu.Lock()
 	ts.Items = append(ts.Items, t)
-	ts.mu.Unlock()
+	mu.Unlock()
 }
