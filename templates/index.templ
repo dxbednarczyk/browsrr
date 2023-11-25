@@ -3,13 +3,24 @@ package templates
 templ Index() {
     @head()
 
+    <script>
+
+    </script>
+
 	<h1>Browsrr</h1>
 
-    <form   hx-post="/1337x/" 
+    <form   hx-post="/query/" 
             hx-target="#results"
             hx-swap="innerHTML" >
         <input type="text" id="query" name="query" />
-        <button type="submit">Search</button>
+        <select id="provider" name="provider">
+            <option value="1337x">1337x</option>
+            <option value="nyaa">nyaa.si</option>
+        </select>
+        <button id="request-button" type="submit" 
+                onclick="
+                    document.getElementById('results').innerHTML = '';
+                    htmx.trigger('#request-button', 'htmx:abort')">Search</button>
     </form> 
 
     <div id="results"></div>

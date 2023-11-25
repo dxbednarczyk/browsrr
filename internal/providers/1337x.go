@@ -2,8 +2,10 @@ package providers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 
@@ -12,39 +14,41 @@ import (
 )
 
 func One337X(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
 	query := r.PostForm.Get("query")
+	query = strings.Trim(query, " ")
+
+	if len(query) < 3 {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("query must be longer than 3 characters"))
+
+		return
+	}
 
 	formatted := fmt.Sprintf("https://1337x.to/search/%s/1/", query)
 
-	fmt.Println(formatted)
-
-	resp, err := http.Get(formatted)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("error fetching result"))
-
-		return
-	}
-
-	defer resp.Body.Close()
-
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	doc, err := scrapeSite(formatted)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("error creating document"))
+		w.Write([]byte(fmt.Sprintf("failed to scrape site: %v", err)))
 
-		return
+		fmt.Fprintln(os.Stderr, err)
 	}
 
-	parsed := parseDocument(doc)
+	parsed := parseOne337XDocument(doc)
 
 	w.Header().Add("Content-Type", "text/html")
-	templates.ResultsTemplate(parsed).Render(context.Background(), w)
+	templates.One337XResultTemplate(parsed).Render(context.Background(), w)
 }
 
-func parseDocument(doc *goquery.Document) *templates.Results {
-	r := templates.Results{}
+func parseOne337XDocument(doc *goquery.Document) *templates.One337XResult {
+	r := templates.One337XResult{}
+
+	// weird that this space is here. catches all error messages.
+	if doc.FindMatcher(goquery.Single("h1")).Text() == " Message:" {
+		r.Errors = append(r.Errors, errors.New("no results found"))
+
+		return &r
+	}
 
 	mu := &sync.Mutex{}
 	var wg sync.WaitGroup
@@ -66,33 +70,25 @@ func parseDocument(doc *goquery.Document) *templates.Results {
 	return &r
 }
 
-func details(ts *templates.Results, mu *sync.Mutex, wg *sync.WaitGroup, url string) {
+func details(ts *templates.One337XResult, mu *sync.Mutex, wg *sync.WaitGroup, url string) {
 	defer wg.Done()
 
 	combined := "https://1337x.to" + url
 
-	resp, err := http.Get(combined)
+	doc, err := scrapeSite(combined)
 	if err != nil {
 		ts.Errors = append(ts.Errors, err)
 		return
 	}
 
-	defer resp.Body.Close()
-
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
-	if err != nil {
-		ts.Errors = append(ts.Errors, err)
-		return
-	}
-
-	t := templates.Torrent{
+	t := templates.One337XTorrent{
 		Info: make(map[string]string),
 	}
 
-	untrimmedName := doc.Find("h1").First().Text()
+	untrimmedName := doc.FindMatcher(goquery.Single("h1")).Text()
 	t.Name = strings.Trim(untrimmedName, " ")
 
-	t.Magnet, _ = doc.Find("a[href^=magnet]").First().Attr("href")
+	t.Magnet, _ = doc.FindMatcher(goquery.Single("a[href^=magnet]")).Attr("href")
 
 	doc.Find(".list").Each(func(i int, s *goquery.Selection) {
 		if i == 0 {

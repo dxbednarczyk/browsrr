@@ -1,0 +1,50 @@
+package templates
+
+const (
+	category int = iota
+	title
+	magnet
+	size
+	date
+	seeders
+	leechers
+)
+
+type NyaaResult struct {
+    Items  []NyaaTorrent
+	Errors []error
+}
+
+type NyaaTorrent [7]string
+
+templ NyaaResultTemplate(results *NyaaResult) {
+    @head()
+
+	<h2>Results</h2>
+
+	<ul>
+	for _, err := range results.Errors {
+		<li><h3 style="color:red;">ERROR: { err.Error() }</h3></li>
+	}
+	</ul>
+
+	<ul>
+	for _, item := range results.Items {
+		<li>
+			{ item[title] } <a href={ templ.SafeURL(item[magnet]) }> Download </a>
+			<br />
+			Category: { item[category] }
+            <br />
+			Size: { item[size] }
+			<br />
+			Date: { item[date] }
+			<br />
+			Seeders: <span style="color:green;"> { item[seeders] } </span>
+			<br />
+			Leechers: <span style="color:red;"> { item[leechers] } </span>
+			<br />
+		</li>
+	}
+	</ul>
+}
+

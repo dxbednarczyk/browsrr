@@ -1,39 +1,33 @@
 package templates
 
-type Results struct {
-    Items  []Torrent
+type One337XResult struct {
+    Items  []One337XTorrent
 	Errors []error
 }
 
-type Torrent struct {
+type One337XTorrent struct {
 	Name   string
 	Magnet string
 	Info   map[string]string
 }
 
-templ ResultsTemplate(results *Results) {
+templ One337XResultTemplate(results *One337XResult) {
     @head()
 
 	<h2>Results</h2>
 
-	if len(results.Errors) != 0 {
-		<ul>
-		for _, err := range results.Errors {
-			<li><h3 style="color:red;">ERROR: { err.Error() }</h3></li>
-		}
-		</ul>
+	<ul>
+	for _, err := range results.Errors {
+		<li><h3 style="color:red;">ERROR: { err.Error() }</h3></li>
 	}
+	</ul>
 
 	<ul>
 	for _, item := range results.Items {
 		<li>
 			{ item.Name } <a href={ templ.SafeURL(item.Magnet) }> Download </a>
 			<br />
-			Category: { item.Info["Category"] }
-			<br />
-			Date uploaded: { item.Info["Date uploaded"] }
-			<br />
-			Downloads: { item.Info["Downloads"] }
+			Uploader: { item.Info["Uploaded By"] }
 			<br />
 			Seeders: <span style="color:green;"> { item.Info["Seeders"] } </span>
 			<br />
