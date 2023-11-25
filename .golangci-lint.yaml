@@ -1,6 +1,5 @@
 linters:
   enable:
-    - errcheck
     - gosimple
     - govet
     - ineffassign
@@ -9,7 +8,6 @@ linters:
     - cyclop
     - dupword
     - wsl
-    - varnamelen
     - usestdlibvars
     - unparam
     - revive

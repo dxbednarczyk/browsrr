@@ -51,6 +51,7 @@ func parseOne337XDocument(doc *goquery.Document) *templates.One337XResult {
 	}
 
 	mu := &sync.Mutex{}
+
 	var wg sync.WaitGroup
 
 	doc.Find(".name a").Each(func(i int, s *goquery.Selection) {
