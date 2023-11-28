@@ -8,7 +8,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/dxbednarczyk/browsrr/templates"
-	"github.com/gin-gonic/gin"
+	"github.com/labstack/echo/v4"
 )
 
 const (
@@ -21,49 +21,45 @@ const (
 	leechers
 )
 
-func Nyaa(ctx *gin.Context) {
-	query := ctx.PostForm("query")
+func Nyaa(ctx echo.Context) error {
+	query := ctx.FormValue("query")
 	query = strings.Trim(query, " ")
 
 	formatted := fmt.Sprintf("https://nyaa.si/?q=%s", query)
 
-	doc, err := scrapeSite(formatted)
-	if err != nil {
-		ctx.String(http.StatusInternalServerError, fmt.Sprintf("failed to scrape site: %v", err))
-
-		ctx.AbortWithError(http.StatusInternalServerError, err)
-
-		return
-	}
-
-	parsed := parseNyaaDocument(doc)
-
-	ctx.HTML(http.StatusOK, "", templates.NyaaResultTemplate(parsed))
-}
-
-func parseNyaaDocument(doc *goquery.Document) *templates.NyaaResult {
 	r := templates.NyaaResult{}
 
-	// if no results found error text
-	if doc.FindMatcher(goquery.Single("h3")).Text() != "" {
-		r.Errors = append(r.Errors, errors.New("no results found"))
+	doc, err := scrapeSite(formatted)
+	if err != nil {
+		r.Errors = append(r.Errors, fmt.Errorf("failed to scrape site: %v", err))
 
-		return &r
+		return templates.Render(ctx, http.StatusInternalServerError, templates.NyaaResultTemplate(&r))
 	}
 
+	parseNyaaDocument(doc, &r)
+
+	var statusCode = http.StatusOK
+	if r.Errors != nil {
+		statusCode = http.StatusConflict
+	}
+
+	return templates.Render(ctx, statusCode, templates.NyaaResultTemplate(&r))
+}
+
+func parseNyaaDocument(doc *goquery.Document, r *templates.NyaaResult) {
 	doc.Find("tr .success, .default, .danger").Each(func(i int, s *goquery.Selection) {
 		t := new(templates.NyaaTorrent)
 
 		s.Find("td").Each(func(i int, s *goquery.Selection) {
 			switch i {
 			case category:
-				t[i] = s.Children().First().AttrOr("title", "Unknown")
+				t[category] = s.Children().First().AttrOr("title", "Unknown")
 			case title:
-				t[i] = s.Children().Last().AttrOr("title", "Unknown")
+				t[title] = s.Children().Last().AttrOr("title", "Unknown")
 			case magnet:
-				t[i] = s.Children().Last().AttrOr("magnet", "javascript:alert('Magnet link unavailable')")
+				t[magnet] = s.Children().Last().AttrOr("magnet", "javascript:alert('Magnet link unavailable')")
 			case date:
-				t[i] = s.AttrOr("data-timestamp", "0")
+				t[date] = s.AttrOr("data-timestamp", "0")
 			case size, seeders, leechers:
 				t[i] = s.Text()
 			}
@@ -72,5 +68,7 @@ func parseNyaaDocument(doc *goquery.Document) *templates.NyaaResult {
 		r.Items = append(r.Items, *t)
 	})
 
-	return &r
+	if len(r.Items) == 0 {
+		r.Errors = append(r.Errors, errors.New("no results found"))
+	}
 }

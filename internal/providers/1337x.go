@@ -9,45 +9,46 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/dxbednarczyk/browsrr/templates"
-	"github.com/gin-gonic/gin"
+	"github.com/labstack/echo/v4"
 )
 
-func One337X(ctx *gin.Context) {
-	query := ctx.PostForm("query")
+func One337X(ctx echo.Context) error {
+	query := ctx.FormValue("query")
 	query = strings.Trim(query, " ")
 
+	r := templates.One337XResult{}
+
 	if len(query) < 3 {
-		ctx.String(http.StatusBadRequest, "query must be longer than 3 characters")
+		r.Errors = append(r.Errors, errors.New("query must be longer than 3 characters"))
 
-		ctx.AbortWithStatus(http.StatusBadRequest)
-
-		return
+		return templates.Render(ctx, http.StatusBadRequest, templates.One337XResultTemplate(&r))
 	}
 
 	formatted := fmt.Sprintf("https://1337x.to/search/%s/1/", query)
 
 	doc, err := scrapeSite(formatted)
 	if err != nil {
-		ctx.String(http.StatusInternalServerError, fmt.Sprintf("failed to scrape site: %v", err))
+		r.Errors = append(r.Errors, fmt.Errorf("failed to scrape site: %v", err))
 
-		ctx.AbortWithError(http.StatusInternalServerError, err)
-
-		return
+		return templates.Render(ctx, http.StatusInternalServerError, templates.One337XResultTemplate(&r))
 	}
 
-	parsed := parseOne337XDocument(doc)
+	parseOne337XDocument(doc, &r)
 
-	ctx.HTML(http.StatusOK, "", templates.One337XResultTemplate(parsed))
+	var statusCode = http.StatusOK
+	if r.Errors != nil {
+		statusCode = http.StatusConflict
+	}
+
+	return templates.Render(ctx, statusCode, templates.One337XResultTemplate(&r))
 }
 
-func parseOne337XDocument(doc *goquery.Document) *templates.One337XResult {
-	r := templates.One337XResult{}
-
+func parseOne337XDocument(doc *goquery.Document, r *templates.One337XResult) {
 	// _____________________________________ weird that ↓ this space is here.
 	if doc.FindMatcher(goquery.Single("h1")).Text() == " Message:" {
 		r.Errors = append(r.Errors, errors.New("no results found"))
 
-		return &r
+		return
 	}
 
 	mu := &sync.Mutex{}
@@ -62,23 +63,22 @@ func parseOne337XDocument(doc *goquery.Document) *templates.One337XResult {
 
 		if strings.HasPrefix(url, "/torrent") {
 			wg.Add(1)
-			go details(&r, mu, &wg, url)
+			go details(r, mu, &wg, url)
 		}
 	})
 
 	wg.Wait()
-
-	return &r
 }
 
-func details(ts *templates.One337XResult, mu *sync.Mutex, wg *sync.WaitGroup, url string) {
+func details(r *templates.One337XResult, mu *sync.Mutex, wg *sync.WaitGroup, url string) {
 	defer wg.Done()
 
 	combined := "https://1337x.to" + url
 
 	doc, err := scrapeSite(combined)
 	if err != nil {
-		ts.Errors = append(ts.Errors, err)
+		r.Errors = append(r.Errors, err)
+
 		return
 	}
 
@@ -105,6 +105,6 @@ func details(ts *templates.One337XResult, mu *sync.Mutex, wg *sync.WaitGroup, ur
 	})
 
 	mu.Lock()
-	ts.Items = append(ts.Items, t)
+	r.Items = append(r.Items, t)
 	mu.Unlock()
 }

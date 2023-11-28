@@ -4,23 +4,33 @@ templ Index() {
     @head()
 
     <script>
-
+        document.getElementById('form').addEventListener('htmx:responseError', function(event) {
+            document.getElementById('results').innerHTML = event.detail.error
+        })
     </script>
 
 	<h1>Browsrr</h1>
 
-    <form   hx-post="/query/" 
+    <form   
+            id="form"
+            hx-post="/query/" 
             hx-target="#results"
             hx-swap="innerHTML" >
         <input type="text" id="query" name="query" />
+
         <select id="provider" name="provider">
             <option value="1337x">1337x</option>
             <option value="nyaa">nyaa.si</option>
+            <option value="sukebei">sukebei</option>
         </select>
-        <button id="request-button" type="submit" 
-                onclick="
-                    document.getElementById('results').innerHTML = '';
-                    htmx.trigger('#request-button', 'htmx:abort')">Search</button>
+
+        <button 
+            id="request-button" 
+            type="submit" 
+            onclick="document.getElementById('results').innerHTML = ''"
+        >
+            Search
+        </button>
     </form> 
 
     <div id="results"></div>

@@ -5,40 +5,39 @@ import (
 
 	"github.com/dxbednarczyk/browsrr/internal/providers"
 	"github.com/dxbednarczyk/browsrr/templates"
-	"github.com/gin-gonic/gin"
+	"github.com/labstack/echo/v4"
 )
 
 func main() {
-	r := gin.Default()
+	e := echo.New()
 
-	r.SetTrustedProxies(nil)
-	r.HTMLRender = &TemplRender{}
-
-	r.POST("/query/", func(ctx *gin.Context) {
-		err := ctx.Request.ParseForm()
+	e.POST("/query/", func(ctx echo.Context) error {
+		err := ctx.Request().ParseForm()
 		if err != nil {
 			ctx.String(http.StatusInternalServerError, "failed to parse query data")
 
-			ctx.AbortWithStatus(http.StatusInternalServerError)
+			return err
 		}
 
-		provider := ctx.PostForm("provider")
+		provider := ctx.FormValue("provider")
 
 		switch provider {
 		case "1337x":
-			providers.One337X(ctx)
+			return providers.One337X(ctx)
 		case "nyaa":
-			providers.Nyaa(ctx)
+			return providers.Nyaa(ctx)
+		case "sukebei":
+			return providers.Sukebei(ctx)
 		default:
 			ctx.String(http.StatusInternalServerError, "invalid provider selected")
-
-			ctx.AbortWithStatus(http.StatusInternalServerError)
 		}
+
+		return nil
 	})
 
-	r.GET("/", func(ctx *gin.Context) {
-		ctx.HTML(http.StatusOK, "", templates.Index())
+	e.GET("/", func(ctx echo.Context) error {
+		return templates.Render(ctx, http.StatusOK, templates.Index())
 	})
 
-	r.Run(":3000")
+	e.Logger.Fatal(e.Start(":3000"))
 }
