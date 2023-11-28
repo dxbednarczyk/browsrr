@@ -1,25 +1,25 @@
 package providers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/dxbednarczyk/browsrr/templates"
+	"github.com/gin-gonic/gin"
 )
 
-func One337X(w http.ResponseWriter, r *http.Request) {
-	query := r.PostForm.Get("query")
+func One337X(ctx *gin.Context) {
+	query := ctx.PostForm("query")
 	query = strings.Trim(query, " ")
 
 	if len(query) < 3 {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("query must be longer than 3 characters"))
+		ctx.String(http.StatusBadRequest, "query must be longer than 3 characters")
+
+		ctx.AbortWithStatus(http.StatusBadRequest)
 
 		return
 	}
@@ -28,22 +28,22 @@ func One337X(w http.ResponseWriter, r *http.Request) {
 
 	doc, err := scrapeSite(formatted)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(fmt.Sprintf("failed to scrape site: %v", err)))
+		ctx.String(http.StatusInternalServerError, fmt.Sprintf("failed to scrape site: %v", err))
 
-		fmt.Fprintln(os.Stderr, err)
+		ctx.AbortWithError(http.StatusInternalServerError, err)
+
+		return
 	}
 
 	parsed := parseOne337XDocument(doc)
 
-	w.Header().Add("Content-Type", "text/html")
-	templates.One337XResultTemplate(parsed).Render(context.Background(), w)
+	ctx.HTML(http.StatusOK, "", templates.One337XResultTemplate(parsed))
 }
 
 func parseOne337XDocument(doc *goquery.Document) *templates.One337XResult {
 	r := templates.One337XResult{}
 
-	// weird that this space is here. catches all error messages.
+	// _____________________________________ weird that ↓ this space is here.
 	if doc.FindMatcher(goquery.Single("h1")).Text() == " Message:" {
 		r.Errors = append(r.Errors, errors.New("no results found"))
 

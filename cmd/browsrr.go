@@ -2,44 +2,43 @@ package main
 
 import (
 	"net/http"
-	"time"
 
-	"github.com/a-h/templ"
 	"github.com/dxbednarczyk/browsrr/internal/providers"
 	"github.com/dxbednarczyk/browsrr/templates"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/httprate"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	r := chi.NewRouter()
+	r := gin.Default()
 
-	r.Use(middleware.Logger)
-	r.Use(httprate.LimitByIP(3, 5*time.Second))
+	r.SetTrustedProxies(nil)
+	r.HTMLRender = &TemplRender{}
 
-	r.Post("/query/", func(w http.ResponseWriter, r *http.Request) {
-		err := r.ParseForm()
+	r.POST("/query/", func(ctx *gin.Context) {
+		err := ctx.Request.ParseForm()
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("failed to parse query data"))
+			ctx.String(http.StatusInternalServerError, "failed to parse query data")
+
+			ctx.AbortWithStatus(http.StatusInternalServerError)
 		}
 
-		provider := r.PostForm.Get("provider")
+		provider := ctx.PostForm("provider")
 
 		switch provider {
 		case "1337x":
-			providers.One337X(w, r)
+			providers.One337X(ctx)
 		case "nyaa":
-			providers.Nyaa(w, r)
+			providers.Nyaa(ctx)
 		default:
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("invalid provider selected"))
+			ctx.String(http.StatusInternalServerError, "invalid provider selected")
+
+			ctx.AbortWithStatus(http.StatusInternalServerError)
 		}
 	})
 
-	index := templates.Index()
-	r.Get("/", templ.Handler(index).ServeHTTP)
+	r.GET("/", func(ctx *gin.Context) {
+		ctx.HTML(http.StatusOK, "", templates.Index())
+	})
 
-	http.ListenAndServe(":3000", r)
+	r.Run(":3000")
 }

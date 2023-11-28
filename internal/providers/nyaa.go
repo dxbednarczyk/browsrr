@@ -1,15 +1,14 @@
 package providers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/dxbednarczyk/browsrr/templates"
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -22,31 +21,31 @@ const (
 	leechers
 )
 
-func Nyaa(w http.ResponseWriter, r *http.Request) {
-	query := r.PostForm.Get("query")
+func Nyaa(ctx *gin.Context) {
+	query := ctx.PostForm("query")
 	query = strings.Trim(query, " ")
 
 	formatted := fmt.Sprintf("https://nyaa.si/?q=%s", query)
 
 	doc, err := scrapeSite(formatted)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(fmt.Sprintf("failed to scrape site: %v", err)))
+		ctx.String(http.StatusInternalServerError, fmt.Sprintf("failed to scrape site: %v", err))
 
-		fmt.Fprintln(os.Stderr, err)
+		ctx.AbortWithError(http.StatusInternalServerError, err)
+
+		return
 	}
 
 	parsed := parseNyaaDocument(doc)
 
-	w.Header().Add("Content-Type", "text/html")
-	templates.NyaaResultTemplate(parsed).Render(context.Background(), w)
+	ctx.HTML(http.StatusOK, "", templates.NyaaResultTemplate(parsed))
 }
 
 func parseNyaaDocument(doc *goquery.Document) *templates.NyaaResult {
 	r := templates.NyaaResult{}
 
 	// if no results found error text
-	if doc.FindMatcher(goquery.Single("h3")) != nil {
+	if doc.FindMatcher(goquery.Single("h3")).Text() != "" {
 		r.Errors = append(r.Errors, errors.New("no results found"))
 
 		return &r
