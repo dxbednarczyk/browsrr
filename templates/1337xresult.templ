@@ -16,11 +16,7 @@ templ One337XResultTemplate(results *One337XResult) {
 
 	<h2>Results</h2>
 
-	<ul>
-	for _, err := range results.Errors {
-		<li><h3 style="color:red;">ERROR: { err.Error() }</h3></li>
-	}
-	</ul>
+	@Errors(results.Errors)
 
 	<ul>
 	for _, item := range results.Items {

@@ -1,6 +1,8 @@
 package providers
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -21,19 +23,20 @@ const (
 	leechers
 )
 
-func Nyaa(ctx echo.Context) error {
+func Nyaa(ctx echo.Context, sukebei bool) error {
 	query := ctx.FormValue("query")
 	query = strings.Trim(query, " ")
 
-	formatted := fmt.Sprintf("https://nyaa.si/?q=%s", query)
-
 	r := templates.NyaaResult{}
+
+	formatted := fmt.Sprintf("https://nyaa.si/?q=%s", query)
+	if sukebei {
+		formatted = fmt.Sprintf("https://sukebei.nyaa.si/?q=%s", query)
+	}
 
 	doc, err := scrapeSite(formatted)
 	if err != nil {
-		r.Errors = append(r.Errors, fmt.Errorf("failed to scrape site: %v", err))
-
-		return templates.Render(ctx, http.StatusInternalServerError, templates.NyaaResultTemplate(&r))
+		return ctx.String(http.StatusInternalServerError, fmt.Sprintf("failed to scrape site: %v", err))
 	}
 
 	parseNyaaDocument(doc, &r)
@@ -43,7 +46,10 @@ func Nyaa(ctx echo.Context) error {
 		statusCode = http.StatusConflict
 	}
 
-	return templates.Render(ctx, statusCode, templates.NyaaResultTemplate(&r))
+	var buf bytes.Buffer
+	templates.NyaaResultTemplate(&r).Render(context.Background(), &buf)
+
+	return ctx.HTML(statusCode, buf.String())
 }
 
 func parseNyaaDocument(doc *goquery.Document, r *templates.NyaaResult) {

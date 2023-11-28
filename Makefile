@@ -19,4 +19,4 @@ install-linters:
 
 run:
 	templ generate
-	go run ./cmd/.
+	go run .

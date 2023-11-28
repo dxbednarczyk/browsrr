@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/dxbednarczyk/browsrr/internal/providers"
@@ -24,12 +28,26 @@ func main() {
 		case "1337x":
 			return providers.One337X(ctx)
 		case "nyaa":
-			return providers.Nyaa(ctx)
+			return providers.Nyaa(ctx, false)
 		case "sukebei":
-			return providers.Sukebei(ctx)
+			return providers.Nyaa(ctx, true)
 		default:
 			return ctx.String(http.StatusInternalServerError, "invalid provider selected")
 		}
+	})
+
+	e.POST("/error", func(ctx echo.Context) error {
+		body, err := io.ReadAll(ctx.Request().Body)
+		if err != nil {
+			return err
+		}
+
+		errs := []error{errors.New(string(body))}
+
+		var buf bytes.Buffer
+		templates.Errors(errs).Render(context.Background(), &buf)
+
+		return ctx.HTML(http.StatusOK, buf.String())
 	})
 
 	e.GET("/", func(ctx echo.Context) error {

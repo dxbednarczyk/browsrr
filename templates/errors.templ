@@ -1,0 +1,9 @@
+package templates
+
+templ Errors(errs []error) {
+    <ul>
+	for _, err := range errs {
+		<li><h3 style="color:red;">ERROR: { err.Error() }</h3></li>
+	}
+	</ul>
+}

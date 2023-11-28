@@ -1,6 +1,8 @@
 package providers
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,22 +18,18 @@ func One337X(ctx echo.Context) error {
 	query := ctx.FormValue("query")
 	query = strings.Trim(query, " ")
 
-	r := templates.One337XResult{}
-
 	if len(query) < 3 {
-		r.Errors = append(r.Errors, errors.New("query must be longer than 3 characters"))
-
-		return templates.Render(ctx, http.StatusBadRequest, templates.One337XResultTemplate(&r))
+		return ctx.String(http.StatusBadRequest, "query must be longer than 3 characters")
 	}
 
 	formatted := fmt.Sprintf("https://1337x.to/search/%s/1/", query)
 
 	doc, err := scrapeSite(formatted)
 	if err != nil {
-		r.Errors = append(r.Errors, fmt.Errorf("failed to scrape site: %v", err))
-
-		return templates.Render(ctx, http.StatusInternalServerError, templates.One337XResultTemplate(&r))
+		return ctx.String(http.StatusInternalServerError, fmt.Sprintf("failed to scrape site: %v", err))
 	}
+
+	r := templates.One337XResult{}
 
 	parseOne337XDocument(doc, &r)
 
@@ -40,7 +38,10 @@ func One337X(ctx echo.Context) error {
 		statusCode = http.StatusConflict
 	}
 
-	return templates.Render(ctx, statusCode, templates.One337XResultTemplate(&r))
+	var buf bytes.Buffer
+	templates.One337XResultTemplate(&r).Render(context.Background(), &buf)
+
+	return ctx.HTML(statusCode, buf.String())
 }
 
 func parseOne337XDocument(doc *goquery.Document, r *templates.One337XResult) {

@@ -3,12 +3,6 @@ package templates
 templ Index() {
     @head()
 
-    <script>
-        document.getElementById('form').addEventListener('htmx:responseError', function(event) {
-            document.getElementById('results').innerHTML = event.detail.error
-        })
-    </script>
-
 	<h1>Browsrr</h1>
 
     <form   
@@ -34,4 +28,21 @@ templ Index() {
     </form> 
 
     <div id="results"></div>
+    
+    <script>
+        document.getElementById('form').addEventListener('htmx:responseError', function(event) {
+            resp = event.detail.xhr.response
+
+            if (resp.startsWith('<')) {
+                document.getElementById('results').innerHTML = resp
+                return
+            }
+
+            res = fetch('/error', { method: "POST", body: resp })
+                    .then(value => value.text())
+                    .then(text => {
+                        document.getElementById('results').innerHTML = text
+                    })
+        })
+    </script>
 }
