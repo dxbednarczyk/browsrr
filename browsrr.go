@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/dxbednarczyk/browsrr/internal/providers"
@@ -14,9 +15,7 @@ func main() {
 	e.POST("/query/", func(ctx echo.Context) error {
 		err := ctx.Request().ParseForm()
 		if err != nil {
-			ctx.String(http.StatusInternalServerError, "failed to parse query data")
-
-			return err
+			return ctx.String(http.StatusInternalServerError, fmt.Sprintf("failed to parse query data: %v", err))
 		}
 
 		provider := ctx.FormValue("provider")
@@ -29,10 +28,8 @@ func main() {
 		case "sukebei":
 			return providers.Sukebei(ctx)
 		default:
-			ctx.String(http.StatusInternalServerError, "invalid provider selected")
+			return ctx.String(http.StatusInternalServerError, "invalid provider selected")
 		}
-
-		return nil
 	})
 
 	e.GET("/", func(ctx echo.Context) error {

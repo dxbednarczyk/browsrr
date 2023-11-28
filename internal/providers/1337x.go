@@ -35,7 +35,7 @@ func One337X(ctx echo.Context) error {
 
 	parseOne337XDocument(doc, &r)
 
-	var statusCode = http.StatusOK
+	statusCode := http.StatusOK
 	if r.Errors != nil {
 		statusCode = http.StatusConflict
 	}

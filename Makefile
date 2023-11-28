@@ -1,3 +1,11 @@
+build:
+	templ generate
+	mkdir build
+	go build -o build
+
+clean:
+	rm -r build
+
 lint:
 	gofumpt -l -w .
 	golangci-lint run -c .golangci-lint.yaml

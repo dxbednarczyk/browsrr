@@ -38,7 +38,7 @@ func Nyaa(ctx echo.Context) error {
 
 	parseNyaaDocument(doc, &r)
 
-	var statusCode = http.StatusOK
+	statusCode := http.StatusOK
 	if r.Errors != nil {
 		statusCode = http.StatusConflict
 	}
