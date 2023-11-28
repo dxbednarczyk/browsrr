@@ -1,12 +1,10 @@
 package providers
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/dxbednarczyk/browsrr/templates"
@@ -24,10 +22,10 @@ const (
 )
 
 func Nyaa(ctx echo.Context, sukebei bool) error {
-	query := ctx.FormValue("query")
-	query = strings.Trim(query, " ")
-
-	r := templates.NyaaResult{}
+	query, err := trimQuery(ctx)
+	if err != nil {
+		return ctx.String(http.StatusBadRequest, err.Error())
+	}
 
 	formatted := fmt.Sprintf("https://nyaa.si/?q=%s", query)
 	if sukebei {
@@ -39,6 +37,9 @@ func Nyaa(ctx echo.Context, sukebei bool) error {
 		return ctx.String(http.StatusInternalServerError, fmt.Sprintf("failed to scrape site: %v", err))
 	}
 
+
+	r := templates.NyaaResult{}
+
 	parseNyaaDocument(doc, &r)
 
 	statusCode := http.StatusOK
@@ -46,10 +47,8 @@ func Nyaa(ctx echo.Context, sukebei bool) error {
 		statusCode = http.StatusConflict
 	}
 
-	var buf bytes.Buffer
-	templates.NyaaResultTemplate(&r).Render(context.Background(), &buf)
-
-	return ctx.HTML(statusCode, buf.String())
+	ctx.Response().Status = statusCode
+	return templates.NyaaResultTemplate(&r).Render(context.Background(), ctx.Response().Writer)
 }
 
 func parseNyaaDocument(doc *goquery.Document, r *templates.NyaaResult) {

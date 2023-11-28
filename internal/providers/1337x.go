@@ -1,7 +1,6 @@
 package providers
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -15,11 +14,9 @@ import (
 )
 
 func One337X(ctx echo.Context) error {
-	query := ctx.FormValue("query")
-	query = strings.Trim(query, " ")
-
-	if len(query) < 3 {
-		return ctx.String(http.StatusBadRequest, "query must be longer than 3 characters")
+	query, err := trimQuery(ctx)
+	if err != nil {
+		return ctx.String(http.StatusBadRequest, err.Error())
 	}
 
 	formatted := fmt.Sprintf("https://1337x.to/search/%s/1/", query)
@@ -38,10 +35,8 @@ func One337X(ctx echo.Context) error {
 		statusCode = http.StatusConflict
 	}
 
-	var buf bytes.Buffer
-	templates.One337XResultTemplate(&r).Render(context.Background(), &buf)
-
-	return ctx.HTML(statusCode, buf.String())
+	ctx.Response().Status = statusCode
+	return templates.One337XResultTemplate(&r).Render(context.Background(), ctx.Response().Writer)
 }
 
 func parseOne337XDocument(doc *goquery.Document, r *templates.One337XResult) {

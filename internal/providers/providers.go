@@ -1,10 +1,13 @@
 package providers
 
 import (
+	"errors"
 	"net/http"
 	"net/http/cookiejar"
+	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/labstack/echo/v4"
 )
 
 func scrapeSite(url string) (*goquery.Document, error) {
@@ -37,4 +40,15 @@ func scrapeSite(url string) (*goquery.Document, error) {
 	}
 
 	return doc, nil
+}
+
+func trimQuery(ctx echo.Context) (string, error) {
+	q := ctx.FormValue("query")
+	q = strings.Trim(q, " ")
+
+	if len(q) < 3 {
+		return "", errors.New("query must be at least 3 characters")
+	}
+
+	return q, nil
 }
