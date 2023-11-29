@@ -1,14 +1,13 @@
 package providers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/a-h/templ"
 	"github.com/dxbednarczyk/browsrr/templates"
-	"github.com/labstack/echo/v4"
 )
 
 const (
@@ -21,10 +20,13 @@ const (
 	leechers
 )
 
-func Nyaa(ctx echo.Context, sukebei bool) error {
-	query, err := trimQuery(ctx)
+func Nyaa(w http.ResponseWriter, r *http.Request, sukebei bool) {
+	query, err := trimQuery(r)
 	if err != nil {
-		return ctx.String(http.StatusBadRequest, err.Error())
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+
+		return
 	}
 
 	formatted := fmt.Sprintf("https://nyaa.si/?q=%s", query)
@@ -34,21 +36,23 @@ func Nyaa(ctx echo.Context, sukebei bool) error {
 
 	doc, err := scrapeSite(formatted)
 	if err != nil {
-		return ctx.String(http.StatusInternalServerError, fmt.Sprintf("failed to scrape site: %v", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("failed to scrape site: %v", err)))
+
+		return
 	}
 
+	res := templates.NyaaResult{}
 
-	r := templates.NyaaResult{}
+	parseNyaaDocument(doc, &res)
 
-	parseNyaaDocument(doc, &r)
+	h := templ.Handler(templates.NyaaResultTemplate(&res))
 
-	statusCode := http.StatusOK
-	if r.Errors != nil {
-		statusCode = http.StatusConflict
+	if res.Errors != nil {
+		h.Status = http.StatusConflict
 	}
 
-	ctx.Response().Status = statusCode
-	return templates.NyaaResultTemplate(&r).Render(context.Background(), ctx.Response().Writer)
+	h.ServeHTTP(w, r)
 }
 
 func parseNyaaDocument(doc *goquery.Document, r *templates.NyaaResult) {

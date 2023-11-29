@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/labstack/echo/v4"
 )
 
 func scrapeSite(url string) (*goquery.Document, error) {
@@ -42,8 +41,8 @@ func scrapeSite(url string) (*goquery.Document, error) {
 	return doc, nil
 }
 
-func trimQuery(ctx echo.Context) (string, error) {
-	q := ctx.FormValue("query")
+func trimQuery(r *http.Request) (string, error) {
+	q := r.FormValue("query")
 	q = strings.Trim(q, " ")
 
 	if len(q) < 3 {

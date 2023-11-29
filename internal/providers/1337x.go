@@ -1,7 +1,6 @@
 package providers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,34 +8,40 @@ import (
 	"sync"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/a-h/templ"
 	"github.com/dxbednarczyk/browsrr/templates"
-	"github.com/labstack/echo/v4"
 )
 
-func One337X(ctx echo.Context) error {
-	query, err := trimQuery(ctx)
+func One337X(w http.ResponseWriter, r *http.Request) {
+	query, err := trimQuery(r)
 	if err != nil {
-		return ctx.String(http.StatusBadRequest, err.Error())
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+
+		return
 	}
 
 	formatted := fmt.Sprintf("https://1337x.to/search/%s/1/", query)
 
 	doc, err := scrapeSite(formatted)
 	if err != nil {
-		return ctx.String(http.StatusInternalServerError, fmt.Sprintf("failed to scrape site: %v", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf("failed to scrape site: %v", err)))
+
+		return
 	}
 
-	r := templates.One337XResult{}
+	res := templates.One337XResult{}
 
-	parseOne337XDocument(doc, &r)
+	parseOne337XDocument(doc, &res)
 
-	statusCode := http.StatusOK
-	if r.Errors != nil {
-		statusCode = http.StatusConflict
+	h := templ.Handler(templates.One337XResultTemplate(&res))
+
+	if res.Errors != nil {
+		h.Status = http.StatusConflict
 	}
 
-	ctx.Response().Status = statusCode
-	return templates.One337XResultTemplate(&r).Render(context.Background(), ctx.Response().Writer)
+	h.ServeHTTP(w, r)
 }
 
 func parseOne337XDocument(doc *goquery.Document, r *templates.One337XResult) {

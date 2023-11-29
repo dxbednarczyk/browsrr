@@ -1,58 +1,91 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"os"
 
+	"github.com/a-h/templ"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/log"
 	"github.com/dxbednarczyk/browsrr/internal/providers"
 	"github.com/dxbednarczyk/browsrr/templates"
-	"github.com/labstack/echo/v4"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/httplog/v2"
 )
 
 func main() {
-	e := echo.New()
+	r := chi.NewRouter()
 
-	e.POST("/query/", func(ctx echo.Context) error {
-		err := ctx.Request().ParseForm()
+	styles := log.DefaultStyles()
+	styles.Message = lipgloss.NewStyle().
+		Padding(0, 1, 0, 1).
+		Background(lipgloss.Color("37"))
+
+	handler := log.New(os.Stdout)
+	handler.SetStyles(styles)
+
+	logger := slog.New(handler)
+
+	httpLogger := httplog.Logger{
+		Logger: logger,
+		Options: httplog.Options{
+			LogLevel: slog.LevelInfo,
+			Concise:  true,
+		},
+	}
+
+	r.Use(httplog.RequestLogger(&httpLogger))
+	r.Use(middleware.Recoverer)
+
+	r.Post("/query/", func(w http.ResponseWriter, r *http.Request) {
+		err := r.ParseForm()
 		if err != nil {
-			return ctx.String(http.StatusInternalServerError, fmt.Sprintf("failed to parse query data: %v", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("failed to parse query data: %v", err)))
+
+			return
 		}
 
-		provider := ctx.FormValue("provider")
+		provider := r.FormValue("provider")
 
 		switch provider {
 		case "1337x":
-			return providers.One337X(ctx)
+			providers.One337X(w, r)
 		case "nyaa":
-			return providers.Nyaa(ctx, false)
+			providers.Nyaa(w, r, false)
 		case "sukebei":
-			return providers.Nyaa(ctx, true)
+			providers.Nyaa(w, r, true)
 		default:
-			return ctx.String(http.StatusInternalServerError, "invalid provider selected")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("invalid provider selected"))
 		}
 	})
 
-	e.POST("/error", func(ctx echo.Context) error {
-		body, err := io.ReadAll(ctx.Request().Body)
+	r.Post("/error", func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			return err
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("failed to parse error data: %v", err)))
+
+			return
 		}
 
 		errs := []error{errors.New(string(body))}
 
-		var buf bytes.Buffer
-		templates.Errors(errs).Render(context.Background(), &buf)
-
-		return ctx.HTML(http.StatusOK, buf.String())
+		h := templ.Handler(templates.Errors(errs))
+		h.ServeHTTP(w, r)
 	})
 
-	e.GET("/", func(ctx echo.Context) error {
-		return templates.Render(ctx, http.StatusOK, templates.Index())
-	})
+	r.Get("/", templ.Handler(templates.Index()).ServeHTTP)
 
-	e.Logger.Fatal(e.Start(":3000"))
+	err := http.ListenAndServe(":3000", r)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
 }
